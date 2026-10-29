@@ -1,0 +1,7 @@
+# Pin for the vendored golden vectors (golden-vectors/protocol-vectors.json).
+# tag    = the infinassistant-firmware tag whose infinassistant/vectors/protocol-vectors.json the copy equals.
+# sha256 = the SHA-256 of that file, which is also the SHA-256 of the copy.
+# CI (.github/workflows/ci.yml) fetches the file at the tag and byte-compares it with the copy.
+# To update: copy the file from the new tag, then change both values below.
+tag=2.4.105
+sha256=be269f7cf96974e7fa31059f9a2d992996ec145d3735a6ca48c53c395434c4eb

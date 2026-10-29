@@ -1,0 +1,7 @@
+[
+  {
+    "file": "firmware/infinitime-2.4.105.zip",
+    "title": "2.4.105: release",
+    "detail": "A fourth brightness setting, B: the screen lights at High after a side-button wake and at Low after any other wake (notification, alarm, charging, Find Watch, tap or raise), and Quick Settings cycles Low, Medium, High, B and shows a B. The watch also reports its battery voltage and whether power is present, so the debug bundle can show a battery trend. The screen no longer goes off early during Find Watch or charging. An update that fails to start rolls back by itself."
+  }
+]

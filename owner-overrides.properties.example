@@ -1,0 +1,17 @@
+# Template for android/owner-overrides.properties (untracked, git-ignored).
+# Copy this file to owner-overrides.properties and replace the placeholders.
+#
+# Read by app/build.gradle.kts at configuration time and written into BuildConfig.
+# A missing file, or a missing key, means an empty value. Lines are plain key=value:
+# no quoting, and a UNC path takes single backslashes.
+
+# Home Wi-Fi subnets (comma-separated IPv4 CIDR). They are the app's default "home networks":
+# an http local Home Assistant URL is used only while the phone is on one of them.
+# Empty = no default; the user sets them in the app (Settings).
+# BuildConfig.HOME_SUBNETS
+home.subnets=192.0.2.0/24,198.51.100.0/24
+
+# SMB share for the debug build's "upload debug bundle" button. Debug builds only: release
+# builds never carry it. Empty = the uploader shows "SMB upload not configured".
+# BuildConfig.DEBUG_SMB_SHARE (debug)
+debug.smb.share=\host\share

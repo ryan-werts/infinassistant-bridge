@@ -1,0 +1,6 @@
+# Files exempt from the hardcoded-colour guard (ColorGuard / SourceTreeGuardTest).
+# Format: <repo-relative path> | <one-line reason>. Blank lines and '#' lines are ignored.
+# An entry that names a file which does not exist fails the test.
+android/core-ui/src/main/java/com/w6tech/infinassistant/core/ui/theme/SemanticPalette.kt | The palette: the one place colour values are defined.
+android/core-ui/src/main/java/com/w6tech/infinassistant/core/ui/theme/AppTheme.kt | The app theme: turns palette values into Compose colours and the Material scheme.
+android/app/src/main/java/com/w6tech/infinassistant/ui/WatchFacePreview.kt | It simulates the watch's display from the layout payload's own colours (BRD D3, FR-13).

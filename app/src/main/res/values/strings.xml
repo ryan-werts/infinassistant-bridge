@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">InfinAssistant Bridge</string>
+    <string name="connected_mode_notif_title">PineTime Bridge Connected Mode</string>
+    <string name="connected_mode_notif_text">Maintaining Home Assistant + PineTime connection</string>
+    <!-- REQ-067: safe-face trip alert shown when the layout is too heavy for the watch. -->
+    <string name="safe_face_notif_title">Watch layout too heavy</string>
+    <string name="safe_face_notif_text">Your watch layout triggered safe mode. Tap to open Layout Preflight and reduce tile or style count.</string>
+    <!-- FR-AF-1/2: watch battery low and watch disconnected alerts. -->
+    <string name="watch_alerts_channel">Watch alerts</string>
+    <string name="watch_battery_low_title">Watch battery low</string>
+    <string name="watch_battery_low_text">The PineTime battery is at %1$d%%. Charge it soon.</string>
+    <string name="watch_disconnected_title">Watch disconnected</string>
+    <string name="watch_disconnected_text">The PineTime has been disconnected since %1$s. Check that it is in range and switched on.</string>
+    <string name="watch_alert_dont_remind">Don\'t remind me</string>
+
+    <!-- The "Send a test" notification of the phone notification forwarding switch. -->
+    <string name="phone_forward_test_channel">Notification forwarding test</string>
+    <string name="phone_forward_test_title">Forwarding test</string>
+    <string name="phone_forward_test_text">If this reaches your watch, forwarding works. Swipe it away on the watch to clear it here.</string>
+</resources>

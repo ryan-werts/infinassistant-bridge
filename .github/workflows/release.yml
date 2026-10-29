@@ -1,0 +1,176 @@
+name: Release
+
+# Runs when a version tag is pushed (a plain version such as 2.1.124). It is the only workflow that
+# reads the signing secrets, each in the one step that needs it, and the only one that can write to
+# the repository. Pull requests never reach it.
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Signed release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      FIRMWARE_REPO: https://github.com/ryan-werts/infinassistant-firmware
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: The tag must equal versionName
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version=$(sed -nE 's/^[[:space:]]*versionName = "([^"]+)".*/\1/p' app/build.gradle.kts)
+          if [ -z "$version" ] || [ "$(printf '%s\n' "$version" | wc -l)" -ne 1 ]; then
+            echo "::error::Expected exactly one versionName in app/build.gradle.kts"
+            exit 1
+          fi
+          if [ "$TAG" != "$version" ]; then
+            echo "::error::Tag $TAG does not equal versionName $version"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Every bundled firmware version has a tag in the firmware repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          index=app/src/main/assets/firmware/index.json
+          entries=$(jq -r 'length' "$index")
+          jq -r '.[].file' "$index" | sed -nE 's/.*-([0-9]+\.[0-9]+\.[0-9]+)\.zip$/\1/p' > "$RUNNER_TEMP/fw-versions.txt"
+          found=$(wc -l < "$RUNNER_TEMP/fw-versions.txt")
+          if [ "$entries" -eq 0 ] || [ "$found" -ne "$entries" ]; then
+            echo "::error::$index has $entries entries but $found of them name a firmware version"
+            exit 1
+          fi
+          if ! GIT_TERMINAL_PROMPT=0 git ls-remote --tags --refs "$FIRMWARE_REPO" | sed 's#.*refs/tags/##' > "$RUNNER_TEMP/fw-tags.txt"; then
+            echo "::error::Cannot list the tags of $FIRMWARE_REPO. It may not be public yet."
+            exit 1
+          fi
+          missing=0
+          while read -r v; do
+            if ! grep -Fxq "$v" "$RUNNER_TEMP/fw-tags.txt"; then
+              echo "::error::Bundled firmware $v has no tag in $FIRMWARE_REPO"
+              missing=1
+            fi
+          done < "$RUNNER_TEMP/fw-versions.txt"
+          exit "$missing"
+
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
+        with:
+          # This job holds the signing secrets, so it restores no build cache and saves none.
+          cache-disabled: true
+
+      # A tag on a commit whose CI failed must not publish: the same unit tests and the same FR-28
+      # golden-vector pin check as ci.yml, before any secret is read.
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest --console=plain
+
+      - name: Golden vectors match the pinned firmware tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          pin=core-data/src/test/resources/golden-vectors.pin
+          copy=core-data/src/test/resources/golden-vectors/protocol-vectors.json
+          tag=$(sed -n 's/^tag=//p' "$pin")
+          want=$(sed -n 's/^sha256=//p' "$pin")
+          if ! printf '%s' "$tag" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::$pin must hold a line tag=<major.minor.patch>"
+            exit 1
+          fi
+          if ! printf '%s' "$want" | grep -Eq '^[0-9a-f]{64}$'; then
+            echo "::error::$pin must hold a line sha256=<64 hex digits>"
+            exit 1
+          fi
+          have=$(sha256sum "$copy" | cut -d' ' -f1)
+          if [ "$have" != "$want" ]; then
+            echo "::error::$copy does not match the sha256 pinned in $pin"
+            exit 1
+          fi
+          url="https://raw.githubusercontent.com/ryan-werts/infinassistant-firmware/${tag}/infinassistant/vectors/protocol-vectors.json"
+          upstream="$RUNNER_TEMP/upstream-protocol-vectors.json"
+          if ! curl -fsSL --retry 2 -o "$upstream" "$url"; then
+            echo "::error::Cannot fetch the golden vectors at firmware tag $tag from $url. Either the tag does not exist or the firmware repository is not public yet."
+            exit 1
+          fi
+          if ! cmp -s "$upstream" "$copy"; then
+            echo "::error::$copy differs from the vectors at firmware tag $tag. Copy the file from that tag, or point $pin at the tag the copy belongs to."
+            exit 1
+          fi
+          echo "$copy is byte-identical to the vectors at firmware tag $tag"
+
+      - name: Decode the keystore
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$ANDROID_KEYSTORE_PATH"
+          if [ ! -s "$ANDROID_KEYSTORE_PATH" ]; then
+            echo "::error::The ANDROID_KEYSTORE_B64 secret is missing or empty"
+            exit 1
+          fi
+
+      - name: Assemble the signed release
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --console=plain
+
+      - name: Verify the APK signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/release/app-release.apk
+          apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n 1)
+          "$apksigner" verify --print-certs "$apk"
+          cp "$apk" "$RUNNER_TEMP/infinassistant-bridge-${VERSION}.apk"
+
+      - name: Publish the GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          notes="$RUNNER_TEMP/release-notes.md"
+          {
+            echo "InfinAssistant Bridge $VERSION."
+            echo
+            echo "Bundled firmware, with the source tag of each version in the firmware repository:"
+            echo
+            while read -r v; do
+              echo "- [$v]($FIRMWARE_REPO/tree/$v)"
+            done < "$RUNNER_TEMP/fw-versions.txt"
+            echo
+            echo "The firmware is licensed GPL-3.0. The tag linked for each version holds its complete source."
+          } > "$notes"
+          gh release create "$TAG" "$RUNNER_TEMP/infinassistant-bridge-${VERSION}.apk" \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --title "$TAG" --notes-file "$notes"
+
+      - name: Delete the keystore
+        if: always()
+        shell: bash
+        run: |
+          shred -u "$RUNNER_TEMP/release.jks" 2>/dev/null || rm -f "$RUNNER_TEMP/release.jks"

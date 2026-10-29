@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!--
+      Cleartext is permitted here and limited in code: plain http may reach only a local-network
+      host (a private, loopback or link-local IP, localhost, or a .local / .home.arpa name), the
+      rule in core-common's LocalNetwork. Every OkHttp client adds core-ha's LanOnlyCleartext, which
+      refuses http to any other host (redirects included), and the firmware download checks the
+      same rule. On top of that, an http local URL is used only on the configured home subnets
+      (core-data's HomeSubnets). This file cannot say any of it: it matches hostnames exactly, not
+      address ranges, so it names no address and allows cleartext as the base policy.
+    -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

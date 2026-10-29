@@ -1,0 +1,5 @@
+# The vendored test fixtures are compared byte for byte with their upstream files and hashed against
+# golden-vectors.pin, so a checkout must never rewrite their line endings.
+core-data/src/test/resources/golden-vectors/* -text
+core-data/src/test/resources/fuzz-seeds/** -text
+core-domain/src/test/resources/fuzz-seeds/** -text
